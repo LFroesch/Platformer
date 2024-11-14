@@ -135,6 +135,7 @@ class Player(AnimatedSprite):
         self.coin_sprites = coin_sprites
         self.on_floor = True
         self.health = 100
+        self.total_cherries = 0
 
         # timer
         self.points_tick_timer = Timer(300)

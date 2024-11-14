@@ -81,6 +81,7 @@ class Game:
                 #print("Cherry position:", obj.x, obj.y)  # Debug position
                 #print("Cherry image:", cherry_image) 
                 Cherry((obj.x, obj.y), cherry_image, [self.all_sprites, self.coins])
+                self.player.total_cherries += 1
             if obj.name == 'Worm':
                 Worm(self.worm_frames, pygame.FRect(obj.x, obj.y, obj.width, obj.height), (self.all_sprites, self.enemy_sprites))
         
@@ -118,7 +119,7 @@ class Game:
         self.display_surface.blit(overlay, (x, y))
 
     def display_score(self):
-        score_text = self.font.render(f'Cherries: {self.player.coins}', True, (0, 0, 0))
+        score_text = self.font.render(f'Cherries: {self.player.coins} / {self.player.total_cherries}', True, (0, 0, 0))
         score_rect = score_text.get_rect(topleft = (20, 20))
         self.display_surface.blit(score_text, score_rect)
         self.display_kills(score_rect)
