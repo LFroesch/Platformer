@@ -27,7 +27,6 @@ class Bullet(Sprite):
         if self.rect.x < -1000 or self.rect.x > self.bounds + 1000:
             self.kill()
         
-
 class Fire(Sprite):
     def __init__(self, surf, pos, groups, player):
         super().__init__(pos, surf, groups)
@@ -66,6 +65,19 @@ class Cherry(Sprite):
         super().__init__(pos, surf, groups)
         self.image = surf
         self.rect = self.image.get_rect(topleft = pos)
+
+class Collectible(AnimatedSprite):
+    def __init__(self, frames, pos, groups):
+        super().__init__(frames, pos, groups)
+        
+    def update(self, dt):
+        self.animate(dt / 2)
+
+class Coin(Collectible):
+    def __init__(self, frames, rect, groups):
+        super().__init__(frames, rect.topleft, groups)
+        self.rect.bottomleft = rect.bottomleft
+        self.main_rect = rect
 
 class Enemy(AnimatedSprite):
     def __init__(self, frames, pos, groups):
@@ -117,11 +129,11 @@ class Worm(Enemy):
             self.frames = [pygame.transform.flip(surf, True, False) for surf in self.frames]
 
 class Player(AnimatedSprite):
-    def __init__(self, pos, groups, collision_sprites, coin_sprites, frames, create_bullet):
+
+    def __init__(self, pos, groups, collision_sprites, collectible_sprites, frames, create_bullet, top_portal, bottom_portal):
         
         super().__init__(frames, pos, groups)
         
-
         # Movement and collision
         self.flip = False # Image Flip
         self.direction = pygame.Vector2()
@@ -129,39 +141,50 @@ class Player(AnimatedSprite):
         self.create_bullet = create_bullet
         self.speed = 400
         self.gravity = 50
+        self.cherries = 0
         self.coins = 0
         self.kills = 0
         self.points = 0
-        self.coin_sprites = coin_sprites
+        self.collectible_sprites = collectible_sprites
         self.on_floor = True
         self.health = 100
         self.total_cherries = 0
+        self.total_coins = 0
+        self.top_portal = top_portal
+        self.bottom_portal = bottom_portal
 
         # timer
         self.points_tick_timer = Timer(300)
         self.damaged_buffer_timer = Timer(1500)
         self.shoot_timer = Timer(300)
         self.health_regen_timer = Timer(300)
+        self.teleport_timer = Timer(1500)
 
     def input(self):
         keys = pygame.key.get_pressed()
-        self.direction.x = int(keys[pygame.K_RIGHT]) - int(keys[pygame.K_LEFT])
+        self.direction.x = (int(keys[pygame.K_RIGHT] or keys[pygame.K_d]) - 
+                   int(keys[pygame.K_LEFT] or keys[pygame.K_a]))
         if keys[pygame.K_SPACE] and self.on_floor:
             self.direction.y = -20
+            print("pressed space")
         if keys[pygame.K_f] and not self.shoot_timer:
             # print('shoot bullet')
             self.create_bullet(self.rect.center, -1 if self.flip else 1)
             self.shoot_timer.activate()
-        if keys[pygame.K_ESCAPE]:
-            sys.exit()
+        if keys[pygame.K_c] and keys[pygame.K_LCTRL]:
+            self.running = False
 
-    def collect_coins(self):
-        for coin in self.coin_sprites:
-            if self.rect.colliderect(coin.rect):
-                self.coins += 1
-                coin.kill()  # This removes the sprite from all groups
-                self.points += 1000
-                self.health = 100
+    def collect_collectibles(self):
+        for collectible in self.collectible_sprites:
+            if self.rect.colliderect(collectible.rect):
+                if isinstance(collectible, Cherry):
+                    self.cherries += 1
+                    self.points += 1000
+                    self.health = 100
+                elif isinstance(collectible, Coin):
+                    self.coins += 1
+                    self.points += 500
+                collectible.kill()  # This removes the sprite from all groups
 
     def move(self, dt):
         # horizontal
@@ -174,6 +197,20 @@ class Player(AnimatedSprite):
         self.collision('vertical')
 
     def collision(self, direction):
+        if not self.teleport_timer.active:
+            if self.rect.colliderect(self.top_portal.rect):
+                self.rect.centerx = self.bottom_portal.rect.centerx
+                self.rect.bottom = self.bottom_portal.rect.top
+                self.teleport_timer.activate()
+                return
+            
+            elif self.rect.colliderect(self.bottom_portal.rect):
+                self.rect.centerx = self.top_portal.rect.centerx
+                self.rect.top = self.top_portal.rect.top
+                self.teleport_timer.activate()
+                return
+            
+
         for sprite in self.collision_sprites:
             if sprite.rect.colliderect(self.rect):
                 if direction == 'horizontal':
@@ -216,10 +253,11 @@ class Player(AnimatedSprite):
             self.points += 5
             self.points_tick_timer.activate()
         
-
     def update(self, dt):
+
         self.points_over_time()
         self.heal_over_time()
+        self.teleport_timer.update()
         self.points_tick_timer.update()
         self.health_regen_timer.update()   
         self.damaged_buffer_timer.update()
@@ -228,4 +266,13 @@ class Player(AnimatedSprite):
         self.input()
         self.move(dt)
         self.animate(dt)
-        self.collect_coins()
+        self.collect_collectibles()
+
+class Portal(Sprite):
+    def __init__(self, pos, surf, groups, portal_type):
+        super().__init__(pos, surf, groups)
+        self.portal_type = portal_type
+
+        # Print Debug for portal init
+        # print(f"Created {portal_type} portal at position {pos}")
+        
