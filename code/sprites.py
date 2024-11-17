@@ -79,6 +79,18 @@ class Coin(Collectible):
         self.rect.bottomleft = rect.bottomleft
         self.main_rect = rect
 
+class Diamond(Collectible):
+    def __init__(self, frames, rect, groups):
+        super().__init__(frames, rect.topleft, groups)
+        self.rect.bottomleft = rect.bottomleft
+        self.main_rect = rect
+
+class Health_Potion(Collectible):
+    def __init__(self, frames, rect, groups):
+        super().__init__(frames, rect.topleft, groups)
+        self.rect.bottomleft = rect.bottomleft
+        self.main_rect = rect
+
 class Enemy(AnimatedSprite):
     def __init__(self, frames, pos, groups):
         super().__init__(frames, pos, groups)
@@ -106,7 +118,7 @@ class Bee(Enemy):
 
     def move(self, dt):
         self.rect.x -= self.speed * dt
-        self.rect.y += sin(pygame.time.get_ticks() / self.frequency) * self.amplitude * dt
+        # self.rect.y += sin(pygame.time.get_ticks() / self.frequency) * self.amplitude * dt
 
     def constraint(self):
         if self.rect.right == 0:
@@ -130,7 +142,7 @@ class Worm(Enemy):
 
 class Player(AnimatedSprite):
 
-    def __init__(self, pos, groups, collision_sprites, collectible_sprites, frames, create_bullet, top_portal, bottom_portal):
+    def __init__(self, pos, groups, collision_sprites, collectible_sprites, frames, create_bullet, top_portal, bottom_portal, top_portal_two, bottom_portal_two):
         
         super().__init__(frames, pos, groups)
         
@@ -142,23 +154,30 @@ class Player(AnimatedSprite):
         self.speed = 400
         self.gravity = 50
         self.cherries = 0
+        self.health_pots = 0
         self.coins = 0
+        self.diamonds = 0
         self.kills = 0
         self.points = 0
         self.collectible_sprites = collectible_sprites
         self.on_floor = True
         self.health = 100
+        self.total_diamonds = 0
         self.total_cherries = 0
         self.total_coins = 0
+        self.total_health_pots = 0
         self.top_portal = top_portal
         self.bottom_portal = bottom_portal
+        self.top_portal_two = top_portal_two
+        self.bottom_portal_two = bottom_portal_two
 
         # timer
+        self.health_potion_cooldown = Timer(2000)
         self.points_tick_timer = Timer(300)
         self.damaged_buffer_timer = Timer(1500)
         self.shoot_timer = Timer(300)
-        self.health_regen_timer = Timer(300)
-        self.teleport_timer = Timer(1500)
+        self.health_regen_timer = Timer(10000)
+        self.teleport_timer = Timer(2000)
 
     def input(self):
         keys = pygame.key.get_pressed()
@@ -166,7 +185,8 @@ class Player(AnimatedSprite):
                    int(keys[pygame.K_LEFT] or keys[pygame.K_a]))
         if keys[pygame.K_SPACE] and self.on_floor:
             self.direction.y = -20
-            print("pressed space")
+        if keys[pygame.K_v]:
+            self.use_health_potion()
         if keys[pygame.K_f] and not self.shoot_timer:
             # print('shoot bullet')
             self.create_bullet(self.rect.center, -1 if self.flip else 1)
@@ -181,9 +201,18 @@ class Player(AnimatedSprite):
                     self.cherries += 1
                     self.points += 1000
                     self.health = 100
+                if isinstance(collectible, Health_Potion):
+                    self.health_pots += 1
+                    self.points += 1000
+                    if self.health < 100:
+                        self.health += 0
+                if isinstance(collectible, Diamond):
+                    self.diamonds += 1
+                    self.points += 10000
                 elif isinstance(collectible, Coin):
                     self.coins += 1
                     self.points += 500
+
                 collectible.kill()  # This removes the sprite from all groups
 
     def move(self, dt):
@@ -198,17 +227,31 @@ class Player(AnimatedSprite):
 
     def collision(self, direction):
         if not self.teleport_timer.active:
-            if self.rect.colliderect(self.top_portal.rect):
-                self.rect.centerx = self.bottom_portal.rect.centerx
-                self.rect.bottom = self.bottom_portal.rect.top
-                self.teleport_timer.activate()
-                return
-            
-            elif self.rect.colliderect(self.bottom_portal.rect):
-                self.rect.centerx = self.top_portal.rect.centerx
-                self.rect.top = self.top_portal.rect.top
-                self.teleport_timer.activate()
-                return
+            if self.top_portal_two is not None and self.bottom_portal_two is not None:
+                if self.rect.colliderect(self.top_portal_two.rect):
+                    self.rect.centerx = self.bottom_portal_two.rect.centerx
+                    self.rect.bottom = self.bottom_portal_two.rect.top
+                    self.teleport_timer.activate()
+                    return
+
+                elif self.rect.colliderect(self.bottom_portal_two.rect):
+                    self.rect.centerx = self.top_portal_two.rect.centerx
+                    self.rect.top = self.top_portal_two.rect.top
+                    self.teleport_timer.activate()
+                    return
+                
+            if self.top_portal is not None and self.bottom_portal is not None:  # Check existence first
+                if self.rect.colliderect(self.top_portal.rect):
+                    self.rect.centerx = self.bottom_portal.rect.centerx
+                    self.rect.bottom = self.bottom_portal.rect.top
+                    self.teleport_timer.activate()
+                    return
+
+                elif self.rect.colliderect(self.bottom_portal.rect):
+                    self.rect.centerx = self.top_portal.rect.centerx
+                    self.rect.top = self.top_portal.rect.top
+                    self.teleport_timer.activate()
+                    return
             
 
         for sprite in self.collision_sprites:
@@ -244,19 +287,20 @@ class Player(AnimatedSprite):
     def heal_over_time(self): # Also has passive point generation
         if self.health < 100:
             if not self.health_regen_timer.active:
-                self.health += 1
+                self.health += 0
                 print(self.health)
                 self.health_regen_timer.activate()
 
     def points_over_time(self):
         if not self.points_tick_timer.active:
-            self.points += 5
+            self.points += 0
             self.points_tick_timer.activate()
         
     def update(self, dt):
 
         self.points_over_time()
         self.heal_over_time()
+        self.health_potion_cooldown.update()
         self.teleport_timer.update()
         self.points_tick_timer.update()
         self.health_regen_timer.update()   
@@ -267,6 +311,16 @@ class Player(AnimatedSprite):
         self.move(dt)
         self.animate(dt)
         self.collect_collectibles()
+    
+    def use_health_potion(self):
+        if self.health_pots >= 1:
+            if not self.health_potion_cooldown.active:
+                self.health_pots -= 1
+                if self.health <= 50:
+                    self.health += 50
+                else:
+                    self.health = 100
+                self.health_potion_cooldown.activate()
 
 class Portal(Sprite):
     def __init__(self, pos, surf, groups, portal_type):
