@@ -12,3 +12,5 @@ class AllSprites(pygame.sprite.Group):
 
         for sprite in self:
             self.display_surface.blit(sprite.image, sprite.rect.topleft + self.offset)
+            if hasattr(sprite, 'draw_health_bar'):
+                sprite.draw_health_bar(self.display_surface, self.offset)

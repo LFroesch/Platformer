@@ -142,10 +142,26 @@ class Worm(Enemy):
 
 class Player(AnimatedSprite):
 
-    def __init__(self, pos, groups, collision_sprites, collectible_sprites, frames, create_bullet, top_portal, bottom_portal, top_portal_two, bottom_portal_two):
+    def __init__(self, pos, groups, collision_sprites, collectible_sprites, frames, create_bullet, top_portal, bottom_portal, top_portal_two, bottom_portal_two, display_surface):
         
         super().__init__(frames, pos, groups)
+        self.display_surface = display_surface
+
         
+        self.visual_rect = self.rect.copy()  # Store the full-size visual rectangle
+        self.rect = self.rect.inflate(-16, 0)  # Make collision box smaller by 8 pixels on each side
+        self.rect.center = self.visual_rect.center
+
+        # health bar logic
+
+        self.health_bar_width = 40  # Width of health bar
+        self.health_bar_height = 10   # Height of health bar
+        self.health_bar_offset = pygame.Vector2(0, -10)  # Offset from player's top
+        
+        # Create the health bar surface
+        self.health_bar_surf = pygame.Surface((self.health_bar_width, self.health_bar_height))
+        self.health_bar_surf.fill('grey')
+
         # Movement and collision
         self.flip = False # Image Flip
         self.direction = pygame.Vector2()
@@ -178,6 +194,35 @@ class Player(AnimatedSprite):
         self.shoot_timer = Timer(300)
         self.health_regen_timer = Timer(10000)
         self.teleport_timer = Timer(2000)
+
+    def draw_health_bar(self, surface, offset):
+        # Get the position relative to the visual rect (which represents what we see)
+        bar_x = self.visual_rect.centerx - (self.health_bar_width // 2) + offset.x + 8
+        bar_y = self.visual_rect.top + self.health_bar_offset.y + offset.y
+
+        # Draw background (grey bar)
+        pygame.draw.rect(surface, (128, 128, 128), 
+            (bar_x, bar_y, self.health_bar_width, self.health_bar_height))
+
+        # Draw health bar
+        if self.health > 0:
+            health_width = int((self.health / 100) * self.health_bar_width)
+            
+            # Color changes based on health
+            if self.health > 70:
+                color = (0, 255, 0)  # Green
+            elif self.health > 40:
+                color = (255, 255, 0)  # Yellow
+            else:
+                color = (255, 0, 0)  # Red
+
+            pygame.draw.rect(surface, color,
+                (bar_x, bar_y, health_width, self.health_bar_height))
+            
+        # Draw border
+        pygame.draw.rect(surface, (0, 0, 0),
+            (bar_x - 1, bar_y - 1, 
+             self.health_bar_width + 2, self.health_bar_height + 2), 1)
 
     def input(self):
         keys = pygame.key.get_pressed()
@@ -218,11 +263,14 @@ class Player(AnimatedSprite):
     def move(self, dt):
         # horizontal
         self.rect.x += self.direction.x * self.speed * dt
+        self.visual_rect.center = self.rect.center
         self.collision('horizontal')
+        # print(self.rect.x, self.rect.y)
         
         # vertical
         self.direction.y += self.gravity * dt
         self.rect.y += self.direction.y
+        self.visual_rect.center = self.rect.center
         self.collision('vertical')
 
     def collision(self, direction):
@@ -278,6 +326,8 @@ class Player(AnimatedSprite):
         self.frame_index = 1 if not self.on_floor else self.frame_index
         self.image = self.frames[int(self.frame_index) % len(self.frames)]
         self.image = pygame.transform.flip(self.image, self.flip, False)
+        self.visual_rect.size = self.image.get_size()
+        self.visual_rect.center = self.rect.center
 
     def take_damage(self, damage):
         if not self.damaged_buffer_timer.active:
@@ -297,7 +347,6 @@ class Player(AnimatedSprite):
             self.points_tick_timer.activate()
         
     def update(self, dt):
-
         self.points_over_time()
         self.heal_over_time()
         self.health_potion_cooldown.update()
@@ -330,3 +379,6 @@ class Portal(Sprite):
         # Print Debug for portal init
         # print(f"Created {portal_type} portal at position {pos}")
         
+class Trader(AnimatedSprite):
+    def __init__(self, frames, pos, groups):
+        super().__init__(frames, pos, groups)

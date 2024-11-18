@@ -19,7 +19,7 @@ class Game:
         self.font = pygame.font.Font(None, 36)
         self.large_font = pygame.font.Font(None, 72)  # Larger font for level transitions
         
-        self.display_surface = pygame.display.set_mode((1600, 900))
+        self.display_surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption('Platformer')
 
         # BG
@@ -79,6 +79,12 @@ class Game:
         self.bee_frames = import_folder('images', 'enemies', 'bee')
         self.worm_frames = import_folder('images', 'enemies', 'worm')
         self.coin_frames = import_folder('images', 'collectibles', 'coin')
+        self.trader_frames = import_folder('images', 'friendly', 'trader')
+        scaled_frames = []
+        for frame in self.trader_frames:
+            scaled = pygame.transform.scale_by(frame, 1.5)
+            scaled_frames.append(scaled)
+        self.trader_frames = scaled_frames
 
         self.ui_assets = {
             # Static UI frames
@@ -150,6 +156,18 @@ class Game:
             bottom_y2 = (32) * TILE_SIZE
             self.top_portal_two = Portal((top_x2, top_y2), portal2_surf, [self.all_sprites], 'top')
             self.bottom_portal_two = Portal((bottom_x2, bottom_y2), portal2_surf, [self.all_sprites], 'bottom')
+        
+        elif self.current_level == 5:
+            level5_portal_surf = portal_surf.copy()
+            level5_portal_surf.set_alpha(64)
+            top_x = (56) * TILE_SIZE
+            top_y = (18) * TILE_SIZE
+            bottom_x = (16) * TILE_SIZE
+            bottom_y = (44) * TILE_SIZE
+            self.top_portal = Portal((top_x, top_y), level5_portal_surf, [self.all_sprites], 'top')
+            self.bottom_portal = Portal((bottom_x, bottom_y), level5_portal_surf, [self.all_sprites], 'bottom')
+            self.top_portal_two = None
+            self.bottom_portal_two = None
             
         else:
             self.top_portal = None
@@ -162,6 +180,13 @@ class Game:
 
         for x, y, image in tmx_map.get_layer_by_name('Decoration').tiles():
             Sprite((x * TILE_SIZE, y * TILE_SIZE), image, (self.all_sprites))
+        
+        try:
+            for x, y, image in tmx_map.get_layer_by_name('Decoration FG').tiles():
+                Sprite((x * TILE_SIZE, y * TILE_SIZE), image, (self.all_sprites))
+        except ValueError:  # Or you might need to catch AttributeError
+            # Layer doesn't exist in this map, skip silently
+            pass
 
         previous_points = 0
         previous_kills = 0
@@ -181,7 +206,8 @@ class Game:
                     self.top_portal,
                     self.bottom_portal,
                     self.top_portal_two,
-                    self.bottom_portal_two
+                    self.bottom_portal_two,
+                    self.display_surface
                     )
                 # Restore previous stats
                 self.player.points = previous_points
@@ -206,6 +232,9 @@ class Game:
             if obj.name == 'Diamond':
                 Diamond(self.diamond_frames, pygame.FRect(obj.x, obj.y, obj.width, obj.height), (self.all_sprites, self.collectible_sprites))
                 self.player.total_diamonds += 1
+
+            if obj.name == 'Trader':
+                Trader(self.trader_frames, (obj.x - 44, obj.y - 95), (self.all_sprites))
 
         
     def collision(self):
@@ -337,6 +366,9 @@ class Game:
                     elif event.key == pygame.K_COMMA and self.game_state == 'playing':
                         self.current_level += 1
                         self.start_level_transition()
+                    elif event.key == pygame.K_PERIOD and self.game_state == 'playing':
+                        self.current_level = 5
+                        self.start_level_transition()
             
             keys = pygame.key.get_pressed()
             if keys[pygame.K_c] and keys[pygame.K_LCTRL]:
@@ -430,10 +462,10 @@ class Game:
         self.display_surface.blit(quit_text, quit_text_rect)
 
     def run_pause_menu(self):
-        overlay = pygame.Surface(self.display_surface.get_size())
-        overlay.fill(BG_COLOR)
-        overlay.set_alpha(128)
-        self.display_surface.blit(overlay, (0, 0))
+        #overlay = pygame.Surface(self.display_surface.get_size())
+        #overlay.fill(BG_COLOR)
+        #overlay.set_alpha(128)
+        #self.display_surface.blit(overlay, (0, 0))
 
         resume_text = self.font.render("Press P to Resume", True, (0, 0, 0))
         text_rect = resume_text.get_rect(center=(self.display_surface.get_width() // 2,
@@ -485,9 +517,10 @@ class Game:
             self.game_state = 'game_over'
         # Draw
         self.display_surface.fill(BG_COLOR)
-        #self.display_surface.blit(self.background, (0, 0))
+        # self.display_surface.blit(self.background, (0, 0))
         if self.player:  # Safety check
             self.all_sprites.draw(self.player.rect.center)
+            
         self.display_score_area()
         '''# collision red square debug
         for sprite in self.collision_sprites:
