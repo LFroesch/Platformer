@@ -95,6 +95,7 @@ class Enemy(AnimatedSprite):
     def __init__(self, frames, pos, groups):
         super().__init__(frames, pos, groups)
         self.death_timer = Timer(200, func = self.kill)
+        self.is_dying = False
 
     def update(self, dt):
         self.death_timer.update()
@@ -105,6 +106,7 @@ class Enemy(AnimatedSprite):
     
     def destroy(self):
         self.death_timer.activate()
+        self.is_dying = True
         self.animation_speed = 0
         self.image = pygame.mask.from_surface(self.image).to_surface()
         self.image.set_colorkey('black')
@@ -375,10 +377,36 @@ class Portal(Sprite):
     def __init__(self, pos, surf, groups, portal_type):
         super().__init__(pos, surf, groups)
         self.portal_type = portal_type
-
-        # Print Debug for portal init
-        # print(f"Created {portal_type} portal at position {pos}")
         
 class Trader(AnimatedSprite):
     def __init__(self, frames, pos, groups):
         super().__init__(frames, pos, groups)
+        self.in_dialogue = False
+        self.dialogue_start_time = 0
+        self.dialogue_duration = 3000
+
+class Shop:
+    def __init__(self, game):
+        self.game = game
+        self.is_open = False
+        self.items = [
+            {
+                'name': 'Health Potion',
+                'price': 100,
+                'icon': self.game.health_potion_icon,
+                'type': 'buy'
+            },
+            {
+                'name': 'Sell Diamond',
+                'price': 100,  # Price player gets for selling
+                'icon': self.game.diamond_frames[0],  # Using first frame of diamond animation
+                'type': 'sell'
+            }
+        ]
+    def update(self, dt):
+        
+        # Update dialogue state
+        if self.in_dialogue:
+            current_time = pygame.time.get_ticks()
+            if current_time - self.dialogue_start_time > self.dialogue_duration:
+                self.in_dialogue = False
